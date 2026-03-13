@@ -1,48 +1,51 @@
 const express = require("express");
 const { Client, LocalAuth } = require("whatsapp-web.js");
 const qrcode = require("qrcode-terminal");
+const chromium = require("@sparticuz/chromium");
+const puppeteer = require("puppeteer-core");
 
 const app = express();
 app.use(express.json());
 
-const client = new Client({
-  authStrategy: new LocalAuth(),
-  puppeteer: {
-    headless: true,
-    args: ["--no-sandbox", "--disable-setuid-sandbox"]
-  }
-});
+async function startWhatsApp() {
 
-client.on("qr", (qr) => {
-  console.log("סרוק את ה-QR:");
-  qrcode.generate(qr, { small: true });
-});
+  const browserPath = await chromium.executablePath();
 
-client.on("ready", () => {
-  console.log("וואטסאפ מחובר!");
-});
+  const client = new Client({
+    authStrategy: new LocalAuth(),
+    puppeteer: {
+      executablePath: browserPath,
+      headless: true,
+      args: chromium.args
+    }
+  });
 
-client.initialize();
+  client.on("qr", (qr) => {
+    console.log("סרוק QR:");
+    qrcode.generate(qr, { small: true });
+  });
 
-/* API לשליחת הודעה */
+  client.on("ready", () => {
+    console.log("WhatsApp מחובר");
+  });
 
-app.post("/send", async (req, res) => {
+  client.initialize();
 
-  const { groupId, message } = req.body;
+  app.post("/send", async (req, res) => {
+    const { groupId, message } = req.body;
 
-  try {
-    await client.sendMessage(groupId, message);
-    res.send("נשלח");
-  } catch (err) {
-    res.status(500).send(err.message);
-  }
+    try {
+      await client.sendMessage(groupId, message);
+      res.send("נשלח");
+    } catch (e) {
+      res.status(500).send(e.message);
+    }
+  });
 
-});
+}
 
-app.get("/", (req,res)=>{
-  res.send("whatsapp server running");
-});
+startWhatsApp();
 
 app.listen(3000, () => {
-  console.log("server started");
+  console.log("Server started");
 });
